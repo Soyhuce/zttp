@@ -3,10 +3,6 @@
 namespace Soyhuce\Zttp;
 
 /**
- * Class Zttp
- *
- * @package Soyhuce\Zttp
- *
  * @method static PendingZttpRequest withoutRedirecting()
  * @method static PendingZttpRequest withoutVerifying()
  * @method static PendingZttpRequest asJson()

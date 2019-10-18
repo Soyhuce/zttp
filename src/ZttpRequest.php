@@ -4,12 +4,6 @@ namespace Soyhuce\Zttp;
 
 use Psr\Http\Message\RequestInterface;
 
-/**
- * Class ZttpRequest
- *
- * @package Soyhuce\Zttp
- * @author  philippe
- */
 class ZttpRequest
 {
     /** @var RequestInterface */
@@ -30,7 +24,7 @@ class ZttpRequest
      *
      * @return string
      */
-    public function url() : string
+    public function url(): string
     {
         return (string) $this->request->getUri();
     }
@@ -40,7 +34,7 @@ class ZttpRequest
      *
      * @return string
      */
-    public function method() : string
+    public function method(): string
     {
         return $this->request->getMethod();
     }
@@ -50,9 +44,9 @@ class ZttpRequest
      *
      * @return string
      */
-    public function body() : string
+    public function body(): string
     {
-        return (string)$this->request->getBody();
+        return (string) $this->request->getBody();
     }
 
     /**
@@ -60,7 +54,7 @@ class ZttpRequest
      *
      * @return array
      */
-    public function headers() : array
+    public function headers(): array
     {
         return collect($this->request->getHeaders())->mapWithKeys(function ($values, $header) {
             return [$header => $values[0]];

@@ -2,26 +2,29 @@
 
 namespace Soyhuce\Zttp;
 
-/**
- * Class PendingZttpRequest
- *
- * @package Soyhuce\Zttp
- */
 class PendingZttpRequest
 {
     /** @var \Illuminate\Support\Collection */
     private $beforeSendingCallbacks;
+
     /** @var string */
     private $bodyFormat;
+
     /** @var array */
     private $options;
+    
+    private $cookies;
+
+    private $transferStats;
 
     /**
      * PendingZttpRequest constructor.
      */
     public function __construct()
     {
-        $this->beforeSendingCallbacks = collect();
+        $this->beforeSendingCallbacks = collect(function ($request, $options) {
+            $this->cookies = $options['cookies'];
+        });
         $this->bodyFormat = 'json';
         $this->options = [
             'http_errors' => false,
@@ -35,7 +38,7 @@ class PendingZttpRequest
      * @param array ...$args
      * @return self
      */
-    public static function new(...$args) : self
+    public static function new(...$args): self
     {
         return new static(...$args);
     }
@@ -46,9 +49,9 @@ class PendingZttpRequest
      * @param array $options
      * @return self
      */
-    public function withOptions($options) : self
+    public function withOptions($options): self
     {
-        return tap($this, function () use ($options) {
+        return tap($this, function (PendingZttpRequest $request) use ($options) {
             return $this->options = array_merge_recursive($this->options, $options);
         });
     }
@@ -58,9 +61,9 @@ class PendingZttpRequest
      *
      * @return self
      */
-    public function withoutRedirecting() : self
+    public function withoutRedirecting(): self
     {
-        return tap($this, function () {
+        return tap($this, function (PendingZttpRequest $request) {
             return $this->options = array_merge_recursive($this->options, [
                 'allow_redirects' => false,
             ]);
@@ -74,7 +77,7 @@ class PendingZttpRequest
      */
     public function withoutVerifying()
     {
-        return tap($this, function () {
+        return tap($this, function (PendingZttpRequest $request) {
             return $this->options = array_merge_recursive($this->options, [
                 'verify' => false,
             ]);
@@ -86,7 +89,7 @@ class PendingZttpRequest
      *
      * @return self
      */
-    public function asJson() : self
+    public function asJson(): self
     {
         return $this->bodyFormat('json')->contentType('application/json');
     }
@@ -96,7 +99,7 @@ class PendingZttpRequest
      *
      * @return self
      */
-    public function asFormParams() : self
+    public function asFormParams(): self
     {
         return $this->bodyFormat('form_params')->contentType('application/x-www-form-urlencoded');
     }
@@ -106,7 +109,7 @@ class PendingZttpRequest
      *
      * @return self
      */
-    public function asMultipart() : self
+    public function asMultipart(): self
     {
         return $this->bodyFormat('multipart');
     }
@@ -117,9 +120,9 @@ class PendingZttpRequest
      * @param string $format
      * @return self
      */
-    public function bodyFormat(string $format) : self
+    public function bodyFormat(string $format): self
     {
-        return tap($this, function () use ($format) {
+        return tap($this, function (PendingZttpRequest $request) use ($format) {
             $this->bodyFormat = $format;
         });
     }
@@ -130,7 +133,7 @@ class PendingZttpRequest
      * @param $contentType
      * @return self
      */
-    public function contentType(string $contentType) : self
+    public function contentType(string $contentType): self
     {
         return $this->withHeaders(['Content-Type' => $contentType]);
     }
@@ -141,7 +144,7 @@ class PendingZttpRequest
      * @param string $accept
      * @return self
      */
-    public function accept(string $accept) : self
+    public function accept(string $accept): self
     {
         return $this->withHeaders(['Accept' => $accept]);
     }
@@ -152,10 +155,10 @@ class PendingZttpRequest
      * @param array $headers
      * @return self
      */
-    function withHeaders(array $headers) : self
+    function withHeaders(array $headers): self
     {
-        return tap($this, function () use ($headers) {
-            $this->options = array_merge_recursive($this->options, [
+        return tap($this, function (PendingZttpRequest $request) use ($headers) {
+            return $this->options = array_merge_recursive($this->options, [
                 'headers' => $headers,
             ]);
         });
@@ -168,9 +171,9 @@ class PendingZttpRequest
      * @param string $password
      * @return self
      */
-    public function withBasicAuth(string $username, string $password) : self
+    public function withBasicAuth(string $username, string $password): self
     {
-        return tap($this, function () use ($username, $password) {
+        return tap($this, function (PendingZttpRequest $request) use ($username, $password) {
             return $this->options = array_merge_recursive($this->options, [
                 'auth' => [$username, $password],
             ]);
@@ -184,11 +187,26 @@ class PendingZttpRequest
      * @param string $password
      * @return self
      */
-    public function withDigestAuth(string $username, string $password) : self
+    public function withDigestAuth(string $username, string $password): self
     {
-        return tap($this, function () use ($username, $password) {
+        return tap($this, function (PendingZttpRequest $request) use ($username, $password) {
             return $this->options = array_merge_recursive($this->options, [
                 'auth' => [$username, $password, 'digest'],
+            ]);
+        });
+    }
+
+    /**
+     * Add cookies to the request
+     *
+     * @param $cookies
+     * @return $this
+     */
+    public function withCookies($cookies): self
+    {
+        return tap($this, function (PendingZttpRequest $request) use ($cookies) {
+            return $this->options = array_merge_recursive($this->options, [
+                'cookies' => $cookies,
             ]);
         });
     }
@@ -199,19 +217,21 @@ class PendingZttpRequest
      * @param int $seconds
      * @return $this
      */
-    function timeout(int $seconds) : self
+    function timeout(int $seconds): self
     {
-        $this->options['timeout'] = $seconds;
-        return $this;
+        return tap($this, function () use ($seconds) {
+            $this->options['timeout'] = $seconds;
+        });
     }
 
     /**
      * Add a beforeSending callback
      *
      * @param callable $callback
+     *
      * @return self
      */
-    public function beforeSending(callable $callback) : self
+    public function beforeSending(callable $callback): self
     {
         return tap($this, function () use ($callback) {
             $this->beforeSendingCallbacks[] = $callback;
@@ -225,7 +245,7 @@ class PendingZttpRequest
      * @param array $queryParams
      * @return ZttpResponse
      */
-    public function get(string $url, array $queryParams = []) : ZttpResponse
+    public function get(string $url, array $queryParams = []): ZttpResponse
     {
         return $this->send('GET', $url, [
             'query' => $queryParams,
@@ -239,7 +259,7 @@ class PendingZttpRequest
      * @param array $params
      * @return ZttpResponse
      */
-    public function post(string $url, array $params = []) : ZttpResponse
+    public function post(string $url, array $params = []): ZttpResponse
     {
         return $this->send('POST', $url, [
             $this->bodyFormat => $params,
@@ -253,7 +273,7 @@ class PendingZttpRequest
      * @param array $params
      * @return ZttpResponse
      */
-    public function patch(string $url, array $params = []) : ZttpResponse
+    public function patch(string $url, array $params = []): ZttpResponse
     {
         return $this->send('PATCH', $url, [
             $this->bodyFormat => $params,
@@ -267,7 +287,7 @@ class PendingZttpRequest
      * @param array $params
      * @return ZttpResponse
      */
-    public function put(string $url, array $params = []) : ZttpResponse
+    public function put(string $url, array $params = []): ZttpResponse
     {
         return $this->send('PUT', $url, [
             $this->bodyFormat => $params,
@@ -281,7 +301,7 @@ class PendingZttpRequest
      * @param array $params
      * @return ZttpResponse
      */
-    public function delete(string $url, array $params = []) : ZttpResponse
+    public function delete(string $url, array $params = []): ZttpResponse
     {
         return $this->send('DELETE', $url, [
             $this->bodyFormat => $params,
@@ -297,12 +317,18 @@ class PendingZttpRequest
      * @return ZttpResponse
      * @throws ConnectionException
      */
-    public function send(string $method, string $url, array $options) : ZttpResponse
+    public function send(string $method, string $url, array $options): ZttpResponse
     {
         try {
-            return new ZttpResponse($this->buildClient()->request($method, $url, $this->mergeOptions([
-                'query' => $this->parseQueryParams($url)
-            ], $options)));
+            return tap(new ZttpResponse($this->buildClient()->request($method, $url, $this->mergeOptions([
+                'query' => $this->parseQueryParams($url),
+                'on_stats' => function ($transferStats) {
+                    $this->transferStats = $transferStats;
+                },
+            ], $options))), function ($response) {
+                $response->cookies = $this->cookies;
+                $response->transferStats = $this->transferStats;
+            });
         } catch (\GuzzleHttp\Exception\ConnectException $e) {
             throw new ConnectionException($e->getMessage(), 0, $e);
         }
@@ -313,9 +339,12 @@ class PendingZttpRequest
      *
      * @return \GuzzleHttp\Client
      */
-    protected function buildClient()
+    protected function buildClient(): \GuzzleHttp\Client
     {
-        return new \GuzzleHttp\Client(['handler' => $this->buildHandlerStack()]);
+        return new \GuzzleHttp\Client([
+            'handler' => $this->buildHandlerStack(),
+            'cookies' => true,
+        ]);
     }
 
     /**
@@ -323,7 +352,7 @@ class PendingZttpRequest
      *
      * @return \GuzzleHttp\HandlerStack
      */
-    protected function buildHandlerStack()
+    protected function buildHandlerStack(): \GuzzleHttp\HandlerStack
     {
         return tap(\GuzzleHttp\HandlerStack::create(), function (\GuzzleHttp\HandlerStack $stack) {
             $stack->push($this->buildBeforeSendingHandler());
@@ -333,13 +362,13 @@ class PendingZttpRequest
     /**
      * Creates the closure
      *
-     * @return \Closure
+     * @return callable
      */
-    protected function buildBeforeSendingHandler()
+    protected function buildBeforeSendingHandler(): callable
     {
         return function ($handler) {
             return function ($request, $options) use ($handler) {
-                return $handler($this->runBeforeSendingCallbacks($request), $options);
+                return $handler($this->runBeforeSendingCallbacks($request, $options), $options);
             };
         };
     }
@@ -350,10 +379,10 @@ class PendingZttpRequest
      * @param $request
      * @return mixed
      */
-    protected function runBeforeSendingCallbacks($request)
+    protected function runBeforeSendingCallbacks($request, $options)
     {
-        return tap($request, function ($request) {
-            $this->beforeSendingCallbacks->each->__invoke(new ZttpRequest($request));
+        return tap($request, function ($request) use ($options) {
+            $this->beforeSendingCallbacks->each->__invoke(new ZttpRequest($request), $options);
         });
     }
 
@@ -363,7 +392,7 @@ class PendingZttpRequest
      * @param array ...$options
      * @return array
      */
-    protected function mergeOptions(...$options) : array
+    protected function mergeOptions(...$options): array
     {
         return array_merge_recursive($this->options, ...$options);
     }
@@ -374,7 +403,7 @@ class PendingZttpRequest
      * @param string $url
      * @return array
      */
-    protected function parseQueryParams(string $url) : array
+    protected function parseQueryParams(string $url): array
     {
         return tap([], function (&$query) use ($url) {
             parse_str(parse_url($url, PHP_URL_QUERY), $query);

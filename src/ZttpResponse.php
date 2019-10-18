@@ -18,6 +18,10 @@ class ZttpResponse
     /** @var \GuzzleHttp\Psr7\Response */
     private $response;
 
+    public $cookies;
+
+    public $transferStats;
+
     /**
      * ZttpResponse constructor.
      *
@@ -33,7 +37,7 @@ class ZttpResponse
      *
      * @return string
      */
-    function body() : string
+    function body(): string
     {
         return (string) $this->response->getBody();
     }
@@ -43,7 +47,7 @@ class ZttpResponse
      *
      * @return array
      */
-    public function json() : array
+    public function json(): array
     {
         return (array) json_decode($this->response->getBody(), true);
     }
@@ -52,9 +56,10 @@ class ZttpResponse
      * Returns the value of the header
      *
      * @param string $header
+     *
      * @return string
      */
-    public function header(string $header) : string
+    public function header(string $header): string
     {
         return $this->response->getHeaderLine($header);
     }
@@ -64,7 +69,7 @@ class ZttpResponse
      *
      * @return array
      */
-    public function headers() : array
+    public function headers(): array
     {
         return collect($this->response->getHeaders())->mapWithKeys(function ($v, $k) {
             return [$k => $v[0]];
@@ -76,20 +81,19 @@ class ZttpResponse
      *
      * @return int
      */
-    public function status() : int
+    public function status(): int
     {
         return $this->response->getStatusCode();
     }
 
     /**
-     * True if the request was successful, false otherwise
-     * Alias for isSuccess
+     * Get effective URI fetched after redirection
      *
-     * @return bool
+     * @return string
      */
-    public function isOk() : bool
+    public function effectiveUri(): string
     {
-        return $this->isSuccess();
+        return $this->transferStats->getEffectiveUri();
     }
 
     /**
@@ -97,9 +101,20 @@ class ZttpResponse
      *
      * @return bool
      */
-    public function isSuccess()
+    public function isSuccess(): bool
     {
         return $this->status() >= 200 && $this->status() < 300;
+    }
+
+    /**
+     * true if the request was successful, false otherwise
+     * Alias for isSuccess
+     *
+     * @return bool
+     */
+    public function isOk(): bool
+    {
+        return $this->isSuccess();
     }
 
     /**
@@ -107,7 +122,7 @@ class ZttpResponse
      *
      * @return bool
      */
-    public function isRedirect() : bool
+    public function isRedirect(): bool
     {
         return $this->status() >= 300 && $this->status() < 400;
     }
@@ -117,7 +132,7 @@ class ZttpResponse
      *
      * @return bool
      */
-    public function isClientError() : bool
+    public function isClientError(): bool
     {
         return $this->status() >= 400 && $this->status() < 500;
     }
@@ -127,12 +142,22 @@ class ZttpResponse
      *
      * @return bool
      */
-    public function isServerError() : bool
+    public function isServerError(): bool
     {
         return $this->status() >= 500;
     }
 
-    public function __toString() : string
+    /**
+     * Get the cookies sent back by the server
+     *
+     * @return mixed
+     */
+    public function cookies()
+    {
+        return $this->cookies;
+    }
+
+    public function __toString(): string
     {
         return $this->body();
     }
@@ -146,4 +171,3 @@ class ZttpResponse
         return $this->response->{$method}(...$args);
     }
 }
-

@@ -593,6 +593,14 @@ class ZttpTest extends TestCase
         $this->assertTrue($response->isOk());
     }
 
+    /** @test */
+    function can_retrieve_effective_uri()
+    {
+        $response = Zttp::get($this->url('/redirect'));
+
+        $this->assertEquals($this->url('/redirected'), $response->effectiveUri());
+    }
+
     /**
      * @test
      * @expectedException \Soyhuce\Zttp\ConnectionException
@@ -600,5 +608,20 @@ class ZttpTest extends TestCase
     public function client_will_force_timeout()
     {
         Zttp::timeout(1)->get($this->url('/timeout'));
+    }
+
+    /** @test */
+    function cookies_can_be_shared_between_requests()
+    {
+        $response = Zttp::get($this->url('/set-cookie'));
+        $response = Zttp::withCookies($response->cookies())->get($this->url('/get'));
+        $this->assertEquals(['foo' => 'bar'], $response->json()['cookies']);
+
+        $response = Zttp::withCookies($response->cookies())->get($this->url('/set-another-cookie'));
+        $response = Zttp::withCookies($response->cookies())->get($this->url('/get'));
+        $this->assertEquals(['foo' => 'bar', 'baz' => 'qux'], $response->json()['cookies']);
+
+        $response = Zttp::get($this->url('/get'));
+        $this->assertEquals([], $response->json()['cookies']);
     }
 }
