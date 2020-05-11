@@ -1,5 +1,7 @@
 # Zttp
 
+** This package is archived in favor of `illuminate/http` or the original `kitetail/zttp` **
+
 **Important disclaimer :**
 
 This package is a fork of [kitetail/zttp](https://github.com/kitetail/zttp) for those who love PSR-2 and type-hinting.
